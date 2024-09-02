@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="public/style.css" />
+    <title>Document</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"
+      integrity="sha512-Kc323vGBEqzTmouAECnVceyQqyqdsSiqLQISBL29aUW4U/M7pSPA/gEUZQqv1cwx4OnYxTxve5UMg5GT6L4JJg=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <link
+      rel="shortcut icon"
+      href="https://img.icons8.com/?size=100&id=T5lmOkY2YXwv&format=png&color=000000"
+      type="image/x-icon"
+    />
+  </head>
+  <body class="bg-gray-100 flex flex-col min-h-screen">
+    <div id="app">
+      <nav class="bg-white shadow-md p-4 fixed w-full top-0 left-0">
+        <div class="container mx-auto flex justify-between items-center">
+          <div class="flex items-center space-x-4">
+            <div class="flex flex-col gap-1">
+              <i class="fa-solid fa-book text-2xl"></i>
+              <i class="fa-solid fa-spell-check text-2xl ml-2"></i>
+            </div>
+            <h1 class="font-bold text-2xl">Free Dictionary</h1>
+          </div>
+
+          <!-- Search bar -->
+          <div
+            class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-2"
+          >
+            <div class="flex flex-col">
+              <div class="w-full relative">
+                <input
+                  type="text"
+                  placeholder="Start typing any word or phrase"
+                  class="border-2 border-blue-100 text-blue-900 focus:outline-none focus:border-blue-900 focus:ring-blue-900 p-2 rounded-lg w-full sm:w-96"
+                  v-model="searchWord"
+                  @input="filterSuggestions"
+                  autocomplete="off"
+                />
+                <ul
+                  v-if="filteredSuggestions.length > 0"
+                  class="mt-1 w-full max-h-60 border border-gray-300 rounded-md bg-white absolute overflow-y-auto"
+                >
+                  <li
+                    v-for="(suggestion, index) in filteredSuggestions"
+                    :key="index"
+                    class="p-2 border-b border-gray-200 text-stone-600 hover:bg-gray-100 cursor-pointer transition-colors"
+                    @click="selectSuggestion(suggestion)"
+                  >
+                    {{ suggestion }}
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <button
+              class="flex items-center justify-center border-2 border-blue-900 text-blue-900 px-4 py-2 rounded-lg shadow-md hover:bg-blue-100"
+              @click="fetchData(searchWord)"
+            >
+              Search
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Main content -->
+      <main
+        class="flex-grow mx-auto flex items-center justify-center w-full h-screen px-4 sm:px-0"
+      >
+        <section class="flex items-center justify-center w-full">
+          <div
+            class="flex flex-col items-center justify-center border-[4px] border-b-[8px] border-r-[8px] border-blue-900 text-blue-900 w-full max-w-4xl p-6 sm:p-12 rounded-lg shadow-md hover:bg-blue-100"
+          >
+            <h2 id="title" class="font-bold text-2xl sm:text-4xl mb-2">
+              WORD OF THE DAY
+            </h2>
+            <h3 class="text-4xl sm:text-8xl font-bold mb-2">
+              {{ currentWord.word }}
+            </h3>
+            <p
+              class="text-gray-600 mb-5 text-xl sm:text-3xl pr-4"
+              v-show="status"
+            >
+              {{ currentWord.phonetic }}
+              <i
+                class="fa-solid fa-volume-high text-xl sm:text-2xl text-blue-800 cursor-pointer hover:text-blue-700 transition duration-200 ease-in-out"
+                @click="playAudio"
+              ></i>
+            </p>
+
+            <audio ref="audioPlayer">
+              <source :src="currentWord.audioSource" type="audio/mpeg" />
+              Your browser does not support the audio element.
+            </audio>
+
+            <hr class="border-2 border-blue-800 w-full mb-2" />
+
+            <p class="text-gray-600 mb-5 text-lg sm:text-xl pr-4">
+              <i>{{ currentWord.partOfSpeech }}</i>
+            </p>
+            <p class="text-gray-600 mb-5 text-xl sm:text-2xl pr-4">
+              {{ currentWord.definition }}
+            </p>
+            <p class="text-gray-600 mb-5 text-xl sm:text-2xl pr-4">
+              {{ currentWord.example }}
+            </p>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gasparesganga-jquery-loading-overlay@2.1.7/dist/loadingoverlay.min.js"></script>
+    <script>
+      const { createApp } = Vue;
+
+      createApp({
+        data() {
+          return {
+            searchWord: "",
+            currentWord: {},
+            status: false,
+            filteredSuggestions: [],
+          };
+        },
+        methods: {
+          fetchData(word) {
+            $.LoadingOverlay("show", {
+              background: "rgba(230, 223, 220,0.5)",
+              image: "src/bg.png",
+              imageAnimation: "2000ms rotate_left",
+            });
+            if (!word) return;
+            if (word !== "hello") {
+              document.getElementById("title").textContent = "Word Searched";
+              this.saveSearchHistory(word);
+            }
+            console.log("fetching data");
+            axios
+              .get(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`)
+              .then((response) => {
+                const data = response.data[0];
+                this.status = true;
+                this.currentWord = {
+                  word: data.word.charAt(0).toUpperCase() + data.word.slice(1),
+                  partOfSpeech: data.meanings[0]?.partOfSpeech || "N/A",
+                  phonetic:
+                    data.phonetics[0]?.text ||
+                    data.phonetics[1]?.text ||
+                    data.phonetics[2]?.text ||
+                    "No phonetic available",
+                  audioSource:
+                    data.phonetics[0]?.audio ||
+                    data.phonetics[1]?.audio ||
+                    data.phonetics[2]?.audio ||
+                    null,
+                  definition:
+                    data.meanings[0]?.definitions[0]?.definition ||
+                    "No definition available",
+                  example:
+                    data.meanings[0]?.definitions[0]?.example ||
+                    data.meanings[1]?.definitions[0]?.example ||
+                    data.meanings[2]?.definitions[0]?.example ||
+                    "No example available",
+                };
+                this.$refs.audioPlayer.load();
+                $.LoadingOverlay("hide");
+              })
+              .catch((error) => {
+                $.LoadingOverlay("hide");
+                this.status = false;
+                console.log(error);
+                document.getElementById("title").textContent =
+                  "No Definitions Found";
+                this.currentWord = {
+                  definition:
+                    "Sorry pal, we couldn't find definitions for the word you were looking for.",
+                  example:
+                    "You can try the search again at later time or head to the web instead.",
+                };
+              });
+          },
+
+          setCookie(name, value) {
+            document.cookie = `${name}=${value}`;
+          },
+
+          getCookie(name) {
+            const cookies = document.cookie.split(";");
+            for (let i = 0; i < cookies.length; i++) {
+              const cookie = cookies[i].trim();
+              if (cookie.indexOf(name + "=") == 0) {
+                return cookie.substring(name.length + 1, cookie.length);
+              }
+            }
+            return "";
+          },
+
+          saveSearchHistory(keyword) {
+            let history = this.getCookie("searchHistory");
+            history = history ? history.split(",") : [];
+
+            if (!history.includes(keyword)) {
+              history.push(keyword);
+              this.setCookie("searchHistory", history.join(","));
+            }
+          },
+
+          filterSuggestions() {
+            const history = this.getCookie("searchHistory");
+            if (history) {
+              const searchHistory = history.split(",");
+              this.filteredSuggestions = searchHistory.filter((entry) =>
+                entry.toLowerCase().includes(this.searchWord.toLowerCase())
+              );
+            } else {
+              this.filteredSuggestions = [];
+            }
+          },
+
+          selectSuggestion(suggestion) {
+            this.searchWord = suggestion;
+            this.filteredSuggestions = [];
+            this.fetchData(suggestion);
+          },
+
+          playAudio() {
+            const audioPlayer = this.$refs.audioPlayer;
+            if (audioPlayer) {
+              if (audioPlayer.readyState >= 2) {
+                if (audioPlayer.paused) {
+                  audioPlayer.play().catch((error) => {
+                    console.log("Playback error: ", error);
+                  });
+                } else {
+                  audioPlayer.pause();
+                }
+              } else {
+                console.log("Audio not ready yet");
+              }
+            }
+          },
+        },
+        mounted() {
+          const defaultWord = "hello";
+          this.fetchData(defaultWord);
+        },
+      }).mount("#app");
+    </script>
+  </body>
+</html>
